@@ -27,6 +27,7 @@ type Input = {
 };
 
 type FailureCode =
+  | 'betAlreadyRefunded' // Para REFUND cuja transação original já foi feita um REFUND
   | 'insuficcientFunds' // Para saldo insuficiente
   | 'unknownReferencedId' // Para REFUND/ROLLBACK sem referencedId
   | 'invalidReferencedTransactionType' // Para REFUND cujo tipo da transação original não é BET
@@ -77,9 +78,9 @@ export class ProcessTransactionUseCase implements UseCase<
     this.ledgerItemRepository = args.ledgerItemRepository;
   }
 
-  async execute(input: Input): Promise<ProcessTransactionResult> {    
+  async execute(input: Input): Promise<ProcessTransactionResult> {
     if (input.amount.isPositive) {
-      throw new Error("amount must be positive")
+      throw new Error('amount must be positive');
     }
 
     const transactionId = randomUUIDv7();
@@ -187,6 +188,13 @@ export class ProcessTransactionUseCase implements UseCase<
         if (referencedId == null) {
           return { type: 'rejected', code: 'unknownReferencedId' };
         }
+        const isRefunded = await this.transactionRepository.checkRefunded(
+          input.providerId,
+          referencedId,
+        );
+        if (isRefunded) {
+          return { type: 'rejected', code: 'betAlreadyRefunded' };
+        }
         const transaction = await this.transactionRepository.read(
           input.providerId,
           referencedId,
@@ -242,7 +250,6 @@ export class ProcessTransactionUseCase implements UseCase<
             code: 'invalidReferencedTransactionAmount',
           };
         }
-        // TODO Impedir uma segunda reversão da mesma BET
         return { type: 'processed', kind: LedgerItemType.Credit };
 
       case TransactionType.Rollback:
