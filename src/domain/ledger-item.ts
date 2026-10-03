@@ -5,7 +5,7 @@ export enum LedgerItemType {
   Debit = 'DEBIT',
 }
 
-type LedgerItemArgs = {
+type Args = {
   id: string;
   transactionId: string;
   type: LedgerItemType;
@@ -20,7 +20,7 @@ export class LedgerItem {
   public readonly amount: Money;
   public readonly createdAt: Date;
 
-  constructor(args: LedgerItemArgs) {
+  constructor(args: Args) {
     this.id = args.id;
     this.transactionId = args.transactionId;
     this.type = args.type;
