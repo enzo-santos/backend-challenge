@@ -5,6 +5,6 @@ export interface UseCase<Input, Output> {
 export class UseCaseNotImplementedError extends Error {
   constructor(useCaseName: string) {
     super(`${useCaseName} is not implemented yet`);
-    this.name = "UseCaseNotImplementedError";
+    this.name = 'UseCaseNotImplementedError';
   }
 }

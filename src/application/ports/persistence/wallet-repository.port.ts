@@ -1,6 +1,6 @@
-import { Wallet } from "@/src/domain/wallet";
+import { Wallet } from '@/src/domain/wallet';
 
 export interface WalletRepository {
-    exists(playerId: string, currency: string): Promise<boolean>;
-    create(wallet: Wallet): Promise<void>;
+  exists(playerId: string, currency: string): Promise<boolean>;
+  create(wallet: Wallet): Promise<void>;
 }
