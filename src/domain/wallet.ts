@@ -1,6 +1,6 @@
 import { Money } from './money';
 
-type WalletArgs = {
+type Args = {
   id: string;
   playerId: string;
   balance: Money;
@@ -13,7 +13,7 @@ export class Wallet {
   public readonly balance: Money;
   public readonly createdAt: Date;
 
-  constructor(readonly args: WalletArgs) {
+  constructor(readonly args: Args) {
     this.id = args.id;
     this.playerId = args.playerId;
     this.balance = args.balance;
