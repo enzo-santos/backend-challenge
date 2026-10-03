@@ -17,7 +17,7 @@ export enum TransactionStatus {
   Failed = 'FAILED',
 }
 
-type TransactionArgs = {
+type Args = {
   id: string;
   walletId: string;
   providerId: string;
@@ -36,7 +36,7 @@ export class Transaction {
   public readonly status: TransactionStatus;
   public readonly amount: Money;
 
-  constructor(args: TransactionArgs) {
+  constructor(args: Args) {
     this.id = args.id;
     this.walletId = args.walletId;
     this.providerId = args.providerId;
