@@ -90,6 +90,11 @@ export class ProcessTransactionUseCase implements UseCase<
     if (wallet == null) {
       throw new Error('wallet not found');
     }
+    if (wallet.balance.currency !== input.amount.currency) {
+      throw new Error(
+        `invalid currency: expected ${wallet.balance.currency}, got ${input.amount.currency}`,
+      );
+    }
 
     const output = await this.#calculate(wallet, input);
     let balanceAfter: Money | undefined;
