@@ -95,6 +95,11 @@ export class ProcessTransactionUseCase implements UseCase<
         `invalid currency: expected ${wallet.balance.currency}, got ${input.amount.currency}`,
       );
     }
+    if (wallet.playerId !== input.playerId) {
+      throw new Error(
+        `invalid playerId: expected ${wallet.playerId}, got ${input.playerId}`,
+      );
+    }
 
     const output = await this.#calculate(wallet, input);
     let balanceAfter: Money | undefined;
