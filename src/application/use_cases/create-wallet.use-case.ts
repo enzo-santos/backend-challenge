@@ -11,6 +11,7 @@ import {
 } from '@/src/domain/transaction';
 import { LedgerItemRepository } from '../ports/persistence/ledger-item-repository.port';
 import { LedgerItem, LedgerItemType } from '@/src/domain/ledger-item';
+import Decimal from 'decimal.js';
 
 type Input = {
   playerId: string;
@@ -83,8 +84,14 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
         new LedgerItem({
           id: randomUUIDv7(),
           transactionId: transaction.id,
+          walletId: wallet.id,
           type: LedgerItemType.Credit,
+          balanceBefore: new Money({
+            value: new Decimal(0),
+            currency: initialBalance.currency,
+          }),
           amount: initialBalance,
+          balanceAfter: initialBalance,
           createdAt: new Date(),
         }),
       );
