@@ -1,35 +1,44 @@
 import Decimal from 'decimal.js';
 
-export interface MoneyProps {
-  amount: string;
+type Args = {
+  value: Decimal;
   currency: string;
-}
+};
 
 export class Money {
-  private constructor(
-    private readonly value: Decimal,
-    public readonly currency: string,
-  ) {}
+  private readonly value: Decimal;
+  public readonly currency: string;
 
-  static from(props: MoneyProps): Money {
-    return new Money(new Decimal(props.amount), props.currency);
+  constructor(readonly args: Args) {
+    this.value = args.value;
+    this.currency = args.currency;
   }
+
   static zero(currency: string): Money {
-    return new Money(new Decimal(0), currency);
+    return new Money({ value: new Decimal(0), currency });
   }
 
   add(other: Money): Money {
     this.assertSameCurrency(other);
-    return new Money(this.value.add(other.value), this.currency);
+    return new Money({
+      value: this.value.add(other.value),
+      currency: this.currency,
+    });
   }
 
   subtract(other: Money): Money {
     this.assertSameCurrency(other);
-    return new Money(this.value.sub(other.value), this.currency);
+    return new Money({
+      value: this.value.sub(other.value),
+      currency: this.currency,
+    });
   }
 
   negate(): Money {
-    return new Money(this.value.negated(), this.currency);
+    return new Money({
+      value: this.value.negated(),
+      currency: this.currency,
+    });
   }
 
   get isZero(): boolean {
@@ -48,15 +57,9 @@ export class Money {
   equals(other: Money): boolean {
     return this.value.equals(other.value) && this.currency === other.currency;
   }
-  toJSON(): MoneyProps {
-    return {
-      amount: this.value.toSignificantDigits(2).toString(),
-      currency: this.currency,
-    };
-  }
+
   toString(): string {
-    const props = this.toJSON();
-    return `${props.amount} ${props.currency}`;
+    return `${this.value.toSignificantDigits(2)} ${this.currency}`;
   }
 
   private assertSameCurrency(other: Money): void {
