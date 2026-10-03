@@ -27,18 +27,18 @@ type Input = {
 };
 
 type FailureCode =
-  | 'operationWouldOverdraw'
-  | 'operationAlreadyApplied' // Para REFUND/ROLLBACK cuja transação original já foi aplicada
-  | 'insuficcientFunds' // Para saldo insuficiente
-  | 'unknownReferencedId' // Para REFUND/ROLLBACK sem referencedId
-  | 'invalidReferencedTransactionType' // Para REFUND cujo tipo da transação original não é BET
-  | 'invalidReferencedTransactionStatus' // Para REFUND cujo status da transação original não é PROCESSED
-  | 'invalidReferencedTransactionProviderId' // Para REFUND cujo providerId da transação original é diferente do atual
-  | 'invalidReferencedTransactionPlayerId' // Para REFUND cujo playerId da transação original é diferente do atual
-  | 'invalidReferencedTransactionWalletId' // Para REFUND cujo walletId da transação original é diferente do atual
-  | 'invalidReferencedTransactionAmountCurrency' // Para REFUND cujo amount.currency da transação original é diferente do atual
-  | 'invalidReferencedTransactionRoundId' // Para REFUND cujo roundId da transação original é diferente do atual
-  | 'invalidReferencedTransactionAmount'; // Para REFUND cujo amount da transação original é diferente do atual
+  | 'INSUFFICIENT_FUNDS' // Para saldo insuficiente
+  | 'OPERATION_WOULD_OVERDRAW'
+  | 'OPERATION_ALREADY_APPLIED' // Para REFUND/ROLLBACK cuja transação original já foi aplicada
+  | 'REFERENCE_NOT_FOUND' // Para REFUND/ROLLBACK sem referencedId
+  | 'INVALID_REFERENCE_TYPE' // Para REFUND cujo tipo da transação original não é BET
+  | 'INVALID_REFERENCE_STATUS' // Para REFUND cujo status da transação original não é PROCESSED
+  | 'INVALID_REFERENCE_PROVIDER' // Para REFUND cujo providerId da transação original é diferente do atual
+  | 'INVALID_REFERENCE_PLAYER' // Para REFUND cujo playerId da transação original é diferente do atual
+  | 'INVALID_REFERENCE_WALLET' // Para REFUND cujo walletId da transação original é diferente do atual
+  | 'INVALID_REFERENCE_CURRENCY' // Para REFUND cujo amount.currency da transação original é diferente do atual
+  | 'INVALID_REFERENCE_ROUND' // Para REFUND cujo roundId da transação original é diferente do atual
+  | 'INVALID_REFERENCE_AMOUNT'; // Para REFUND cujo amount da transação original é diferente do atual
 
 type Calculation =
   | {
@@ -122,7 +122,7 @@ export class ProcessTransactionUseCase implements UseCase<
 
           if (balanceAfter.isNegative) {
             status = TransactionStatus.Rejected;
-            failureCode = 'operationWouldOverdraw';
+            failureCode = 'OPERATION_WOULD_OVERDRAW';
           } else {
             status = TransactionStatus.Processed;
 
@@ -187,7 +187,7 @@ export class ProcessTransactionUseCase implements UseCase<
         if (wallet.balance.isLessThan(input.amount)) {
           return {
             type: 'rejected',
-            code: 'insuficcientFunds',
+            code: 'INSUFFICIENT_FUNDS',
           };
         }
         return {
@@ -207,7 +207,7 @@ export class ProcessTransactionUseCase implements UseCase<
 
       case TransactionType.Refund:
         if (referencedId == null) {
-          return { type: 'rejected', code: 'unknownReferencedId' };
+          return { type: 'rejected', code: 'REFERENCE_NOT_FOUND' };
         }
         const isRefunded = await this.transactionRepository.checkApplied(
           input.providerId,
@@ -215,7 +215,7 @@ export class ProcessTransactionUseCase implements UseCase<
           TransactionType.Refund,
         );
         if (isRefunded) {
-          return { type: 'rejected', code: 'operationAlreadyApplied' };
+          return { type: 'rejected', code: 'OPERATION_ALREADY_APPLIED' };
         }
         transaction = await this.transactionRepository.read(
           input.providerId,
@@ -227,56 +227,56 @@ export class ProcessTransactionUseCase implements UseCase<
         if (transaction.type !== TransactionType.Bet) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionType',
+            code: 'INVALID_REFERENCE_TYPE',
           };
         }
         if (transaction.status !== TransactionStatus.Processed) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionStatus',
+            code: 'INVALID_REFERENCE_STATUS',
           };
         }
         if (transaction.playerId !== input.playerId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionPlayerId',
+            code: 'INVALID_REFERENCE_PLAYER',
           };
         }
         if (transaction.providerId !== input.providerId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionProviderId',
+            code: 'INVALID_REFERENCE_PROVIDER',
           };
         }
         if (transaction.walletId !== input.walletId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionWalletId',
+            code: 'INVALID_REFERENCE_WALLET',
           };
         }
         if (transaction.amount.currency !== input.amount.currency) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionAmountCurrency',
+            code: 'INVALID_REFERENCE_CURRENCY',
           };
         }
         if (transaction.roundId !== input.roundId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionRoundId',
+            code: 'INVALID_REFERENCE_ROUND',
           };
         }
         if (!transaction.amount.equals(input.amount)) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionAmount',
+            code: 'INVALID_REFERENCE_AMOUNT',
           };
         }
         return { type: 'processed', kind: LedgerItemType.Credit };
 
       case TransactionType.Rollback:
         if (referencedId == null) {
-          return { type: 'rejected', code: 'unknownReferencedId' };
+          return { type: 'rejected', code: 'REFERENCE_NOT_FOUND' };
         }
         const isRolledBack = await this.transactionRepository.checkApplied(
           input.providerId,
@@ -284,7 +284,7 @@ export class ProcessTransactionUseCase implements UseCase<
           TransactionType.Rollback,
         );
         if (isRolledBack) {
-          return { type: 'rejected', code: 'operationAlreadyApplied' };
+          return { type: 'rejected', code: 'OPERATION_ALREADY_APPLIED' };
         }
         transaction = await this.transactionRepository.read(
           input.providerId,
@@ -296,43 +296,43 @@ export class ProcessTransactionUseCase implements UseCase<
         if (transaction.status !== TransactionStatus.Processed) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionStatus',
+            code: 'INVALID_REFERENCE_STATUS',
           };
         }
         if (transaction.playerId !== input.playerId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionPlayerId',
+            code: 'INVALID_REFERENCE_PLAYER',
           };
         }
         if (transaction.providerId !== input.providerId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionProviderId',
+            code: 'INVALID_REFERENCE_PROVIDER',
           };
         }
         if (transaction.walletId !== input.walletId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionWalletId',
+            code: 'INVALID_REFERENCE_WALLET',
           };
         }
         if (transaction.amount.currency !== input.amount.currency) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionAmountCurrency',
+            code: 'INVALID_REFERENCE_CURRENCY',
           };
         }
         if (transaction.roundId !== input.roundId) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionRoundId',
+            code: 'INVALID_REFERENCE_ROUND',
           };
         }
         if (!transaction.amount.equals(input.amount)) {
           return {
             type: 'rejected',
-            code: 'invalidReferencedTransactionAmount',
+            code: 'INVALID_REFERENCE_AMOUNT',
           };
         }
         switch (transaction.type) {
@@ -350,7 +350,7 @@ export class ProcessTransactionUseCase implements UseCase<
           default:
             return {
               type: 'rejected',
-              code: 'invalidReferencedTransactionType',
+              code: 'INVALID_REFERENCE_TYPE',
             };
         }
 
