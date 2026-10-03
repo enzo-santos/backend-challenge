@@ -28,6 +28,7 @@ type Args = {
   roundId: string | undefined;
   gameId: string | undefined;
   failureCode: string | undefined;
+  referencedId: string | undefined;
 };
 
 export class Transaction {
@@ -40,7 +41,8 @@ export class Transaction {
   public readonly amount: Money;
   public readonly roundId: string | undefined;
   public readonly gameId: string | undefined;
-  public readonly failureCode: string | undefined;
+  public readonly failureCode: string | undefined; // Apenas para status REJECTED
+  public readonly referencedId: string | undefined; // Apenas para type REFUND ou ROLLBACK
 
   constructor(args: Args) {
     this.id = args.id;
@@ -53,5 +55,6 @@ export class Transaction {
     this.roundId = args.roundId;
     this.gameId = args.gameId;
     this.failureCode = args.failureCode;
+    this.referencedId = args.referencedId;
   }
 }

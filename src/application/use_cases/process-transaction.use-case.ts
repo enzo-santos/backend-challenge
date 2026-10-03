@@ -34,8 +34,7 @@ type FailureCode =
   | 'invalidReferencedTransactionWalletId' // Para REFUND cujo walletId da transação original é diferente do atual
   | 'invalidReferencedTransactionAmountCurrency' // Para REFUND cujo amount.currency da transação original é diferente do atual
   | 'invalidReferencedTransactionRoundId' // Para REFUND cujo roundId da transação original é diferente do atual
-  | 'invalidReferencedTransactionAmount' // Para REFUND cujo amount da transação original é diferente do atual
-  ;
+  | 'invalidReferencedTransactionAmount'; // Para REFUND cujo amount da transação original é diferente do atual
 
 type Calculation =
   | {
@@ -141,6 +140,7 @@ export class ProcessTransactionUseCase implements UseCase<
       gameId: input.gameId,
       roundId: input.roundId,
       failureCode: failureCode,
+      referencedId: input.referencedId,
     });
     await this.transactionRepository.create(transaction);
     return {
@@ -150,10 +150,7 @@ export class ProcessTransactionUseCase implements UseCase<
     };
   }
 
-  async #calculate(
-    wallet: Wallet,
-    input: Input,
-  ): Promise<Calculation> {
+  async #calculate(wallet: Wallet, input: Input): Promise<Calculation> {
     switch (input.type) {
       case TransactionType.Bet:
         // Rejeitar se saldo insuficiente

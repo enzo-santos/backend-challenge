@@ -75,6 +75,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
         gameId: undefined,
         roundId: undefined,
         failureCode: undefined,
+        referencedId: undefined,
       });
 
       // Persiste transaction inicial
