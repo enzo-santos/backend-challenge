@@ -25,6 +25,8 @@ type Args = {
   type: TransactionType;
   status: TransactionStatus;
   amount: Money;
+  roundId: string | undefined;
+  gameId: string | undefined;
 };
 
 export class Transaction {
@@ -35,6 +37,8 @@ export class Transaction {
   public readonly type: TransactionType;
   public readonly status: TransactionStatus;
   public readonly amount: Money;
+  public readonly roundId: string | undefined;
+  public readonly gameId: string | undefined;
 
   constructor(args: Args) {
     this.id = args.id;
@@ -44,5 +48,7 @@ export class Transaction {
     this.type = args.type;
     this.status = args.status;
     this.amount = args.amount;
+    this.roundId = args.roundId;
+    this.gameId = args.gameId;
   }
 }

@@ -59,6 +59,8 @@ export class ProcessTransactionUseCase implements UseCase<
       amount: input.amount,
       type: input.type,
       status: status,
+      gameId: input.gameId,
+      roundId: input.roundId,
     });
     await this.transactionRepository.create(transaction);
     return {

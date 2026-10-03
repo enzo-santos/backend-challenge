@@ -71,6 +71,8 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
         type: TransactionType.Opening,
         status: TransactionStatus.Processed,
         amount: initialBalance,
+        gameId: undefined,
+        roundId: undefined,
       });
 
       // Persiste transaction inicial
