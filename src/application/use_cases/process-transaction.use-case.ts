@@ -80,7 +80,7 @@ export class ProcessTransactionUseCase implements UseCase<
   }
 
   async execute(input: Input): Promise<ProcessTransactionResult> {
-    if (input.amount.isPositive) {
+    if (!input.amount.isPositive) {
       throw new Error('amount must be positive');
     }
 
