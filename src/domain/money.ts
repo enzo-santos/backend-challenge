@@ -48,7 +48,7 @@ export class Money {
     return this.value.greaterThan(0);
   }
   get isNegative(): boolean {
-    return !this.isPositive;
+    return this.value.lessThan(0);
   }
   isLessThan(other: Money): boolean {
     this.assertSameCurrency(other);
