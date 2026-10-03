@@ -25,6 +25,7 @@ type Args = {
   type: TransactionType;
   status: TransactionStatus;
   amount: Money;
+  playerId: string | undefined;
   roundId: string | undefined;
   gameId: string | undefined;
   failureCode: string | undefined;
@@ -39,6 +40,8 @@ export class Transaction {
   public readonly type: TransactionType;
   public readonly status: TransactionStatus;
   public readonly amount: Money;
+  public readonly playerId: string | undefined;
+
   public readonly roundId: string | undefined;
   public readonly gameId: string | undefined;
   public readonly failureCode: string | undefined; // Apenas para status REJECTED
@@ -52,6 +55,8 @@ export class Transaction {
     this.type = args.type;
     this.status = args.status;
     this.amount = args.amount;
+    this.playerId = args.playerId;
+
     this.roundId = args.roundId;
     this.gameId = args.gameId;
     this.failureCode = args.failureCode;

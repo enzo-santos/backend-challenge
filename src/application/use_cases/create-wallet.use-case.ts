@@ -72,6 +72,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
         type: TransactionType.Opening,
         status: TransactionStatus.Processed,
         amount: initialBalance,
+        playerId: playerId,
         gameId: undefined,
         roundId: undefined,
         failureCode: undefined,

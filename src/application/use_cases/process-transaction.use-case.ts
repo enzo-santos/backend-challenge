@@ -18,6 +18,7 @@ type Input = {
   walletId: string;
   type: TransactionType;
   amount: Money;
+  playerId: string;
 
   roundId: string;
   gameId: string;
@@ -31,6 +32,7 @@ type FailureCode =
   | 'invalidReferencedTransactionType' // Para REFUND cujo tipo da transação original não é BET
   | 'invalidReferencedTransactionStatus' // Para REFUND cujo status da transação original não é PROCESSED
   | 'invalidReferencedTransactionProviderId' // Para REFUND cujo providerId da transação original é diferente do atual
+  | 'invalidReferencedTransactionPlayerId' // Para REFUND cujo playerId da transação original é diferente do atual
   | 'invalidReferencedTransactionWalletId' // Para REFUND cujo walletId da transação original é diferente do atual
   | 'invalidReferencedTransactionAmountCurrency' // Para REFUND cujo amount.currency da transação original é diferente do atual
   | 'invalidReferencedTransactionRoundId' // Para REFUND cujo roundId da transação original é diferente do atual
@@ -137,6 +139,7 @@ export class ProcessTransactionUseCase implements UseCase<
       amount: input.amount,
       type: input.type,
       status: status,
+      playerId: input.playerId,
       gameId: input.gameId,
       roundId: input.roundId,
       failureCode: failureCode,
@@ -197,6 +200,12 @@ export class ProcessTransactionUseCase implements UseCase<
           return {
             type: 'rejected',
             code: 'invalidReferencedTransactionStatus',
+          };
+        }
+        if (transaction.playerId !== input.playerId) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionPlayerId',
           };
         }
         if (transaction.providerId !== input.providerId) {
