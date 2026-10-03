@@ -12,10 +12,10 @@ import {
 import { LedgerItemRepository } from '../ports/persistence/ledger-item-repository.port';
 import { LedgerItem, LedgerItemType } from '@/src/domain/ledger-item';
 
-export interface CreateWalletInput {
+type Input = {
   playerId: string;
   initialBalance: Money;
-}
+};
 
 type Args = {
   walletRepository: WalletRepository;
@@ -23,7 +23,7 @@ type Args = {
   ledgerItemRepository: LedgerItemRepository;
 };
 
-export class CreateWalletUseCase implements UseCase<CreateWalletInput, Wallet> {
+export class CreateWalletUseCase implements UseCase<Input, Wallet> {
   private readonly walletRepository: WalletRepository;
   private readonly transactionRepository: TransactionRepository;
   private readonly ledgerItemRepository: LedgerItemRepository;
@@ -34,7 +34,7 @@ export class CreateWalletUseCase implements UseCase<CreateWalletInput, Wallet> {
     this.ledgerItemRepository = args.ledgerItemRepository;
   }
 
-  async execute(input: CreateWalletInput): Promise<Wallet> {
+  async execute(input: Input): Promise<Wallet> {
     const { playerId, initialBalance } = input;
 
     // Valida saldo inicial
