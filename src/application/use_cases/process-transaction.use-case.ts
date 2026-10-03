@@ -27,7 +27,8 @@ type Input = {
 };
 
 type FailureCode =
-  | 'betAlreadyRefunded' // Para REFUND cuja transação original já foi feita um REFUND
+  | 'operationWouldOverdraw'
+  | 'operationAlreadyApplied' // Para REFUND/ROLLBACK cuja transação original já foi aplicada
   | 'insuficcientFunds' // Para saldo insuficiente
   | 'unknownReferencedId' // Para REFUND/ROLLBACK sem referencedId
   | 'invalidReferencedTransactionType' // Para REFUND cujo tipo da transação original não é BET
@@ -104,12 +105,12 @@ export class ProcessTransactionUseCase implements UseCase<
     const output = await this.#calculate(wallet, input);
     let balanceAfter: Money | undefined;
     let status: TransactionStatus;
-    let failureCode: string | undefined;
+    let failureCode: FailureCode | undefined;
     switch (output.type) {
       case 'processed':
-        status = TransactionStatus.Processed;
-
-        if (output.kind != null) {
+        if (output.kind == null) {
+          status = TransactionStatus.Processed;
+        } else {
           switch (output.kind) {
             case LedgerItemType.Credit:
               balanceAfter = wallet.balance.add(input.amount);
@@ -119,21 +120,28 @@ export class ProcessTransactionUseCase implements UseCase<
               break;
           }
 
-          const item = new LedgerItem({
-            id: randomUUIDv7(),
-            transactionId: transactionId,
-            walletId: wallet.id,
-            type: output.kind,
-            balanceBefore: wallet.balance,
-            amount: input.amount,
-            balanceAfter: balanceAfter,
-            createdAt: new Date(),
-          });
+          if (balanceAfter.isNegative) {
+            status = TransactionStatus.Rejected;
+            failureCode = 'operationWouldOverdraw';
+          } else {
+            status = TransactionStatus.Processed;
 
-          // Atualiza saldo
-          await this.walletRepository.updateBalance(wallet.id, balanceAfter);
-          // Atualiza ledger
-          await this.ledgerItemRepository.create(item);
+            const item = new LedgerItem({
+              id: randomUUIDv7(),
+              transactionId: transactionId,
+              walletId: wallet.id,
+              type: output.kind,
+              balanceBefore: wallet.balance,
+              amount: input.amount,
+              balanceAfter: balanceAfter,
+              createdAt: new Date(),
+            });
+
+            // Atualiza saldo
+            await this.walletRepository.updateBalance(wallet.id, balanceAfter);
+            // Atualiza ledger
+            await this.ledgerItemRepository.create(item);
+          }
         }
         break;
 
@@ -171,6 +179,8 @@ export class ProcessTransactionUseCase implements UseCase<
   }
 
   async #calculate(wallet: Wallet, input: Input): Promise<Calculation> {
+    const referencedId = input.referencedId;
+    let transaction: Transaction | undefined;
     switch (input.type) {
       case TransactionType.Bet:
         // Rejeitar se saldo insuficiente
@@ -196,18 +206,18 @@ export class ProcessTransactionUseCase implements UseCase<
         return { type: 'processed', kind: null };
 
       case TransactionType.Refund:
-        const referencedId = input.referencedId;
         if (referencedId == null) {
           return { type: 'rejected', code: 'unknownReferencedId' };
         }
-        const isRefunded = await this.transactionRepository.checkRefunded(
+        const isRefunded = await this.transactionRepository.checkApplied(
           input.providerId,
           referencedId,
+          TransactionType.Refund,
         );
         if (isRefunded) {
-          return { type: 'rejected', code: 'betAlreadyRefunded' };
+          return { type: 'rejected', code: 'operationAlreadyApplied' };
         }
-        const transaction = await this.transactionRepository.read(
+        transaction = await this.transactionRepository.read(
           input.providerId,
           referencedId,
         );
@@ -265,7 +275,84 @@ export class ProcessTransactionUseCase implements UseCase<
         return { type: 'processed', kind: LedgerItemType.Credit };
 
       case TransactionType.Rollback:
-      // ...
+        if (referencedId == null) {
+          return { type: 'rejected', code: 'unknownReferencedId' };
+        }
+        const isRolledBack = await this.transactionRepository.checkApplied(
+          input.providerId,
+          referencedId,
+          TransactionType.Rollback,
+        );
+        if (isRolledBack) {
+          return { type: 'rejected', code: 'operationAlreadyApplied' };
+        }
+        transaction = await this.transactionRepository.read(
+          input.providerId,
+          referencedId,
+        );
+        if (transaction == null) {
+          return { type: 'pending' };
+        }
+        if (transaction.status !== TransactionStatus.Processed) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionStatus',
+          };
+        }
+        if (transaction.playerId !== input.playerId) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionPlayerId',
+          };
+        }
+        if (transaction.providerId !== input.providerId) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionProviderId',
+          };
+        }
+        if (transaction.walletId !== input.walletId) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionWalletId',
+          };
+        }
+        if (transaction.amount.currency !== input.amount.currency) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionAmountCurrency',
+          };
+        }
+        if (transaction.roundId !== input.roundId) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionRoundId',
+          };
+        }
+        if (!transaction.amount.equals(input.amount)) {
+          return {
+            type: 'rejected',
+            code: 'invalidReferencedTransactionAmount',
+          };
+        }
+        switch (transaction.type) {
+          case TransactionType.Bet:
+            return {
+              type: 'processed',
+              kind: LedgerItemType.Credit,
+            };
+          case TransactionType.Win:
+          case TransactionType.Refund:
+            return {
+              type: 'processed',
+              kind: LedgerItemType.Debit,
+            };
+          default:
+            return {
+              type: 'rejected',
+              code: 'invalidReferencedTransactionType',
+            };
+        }
 
       case TransactionType.Opening:
         throw new Error('invalid type');

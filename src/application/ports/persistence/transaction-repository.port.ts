@@ -1,8 +1,15 @@
-import { Transaction } from '@/src/domain/transaction';
+import { Transaction, TransactionType } from '@/src/domain/transaction';
 
 export interface TransactionRepository {
   create(transaction: Transaction): Promise<void>;
   read(id: string): Promise<Transaction | undefined>;
-  read(providerId: string, externalId: string): Promise<Transaction | undefined>;
-  checkRefunded(providerId: string, externalId: string): Promise<boolean>;
+  read(
+    providerId: string,
+    externalId: string,
+  ): Promise<Transaction | undefined>;
+  checkApplied(
+    providerId: string,
+    externalId: string,
+    status: TransactionType,
+  ): Promise<boolean>;
 }
