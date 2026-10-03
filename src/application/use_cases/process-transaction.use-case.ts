@@ -77,7 +77,11 @@ export class ProcessTransactionUseCase implements UseCase<
     this.ledgerItemRepository = args.ledgerItemRepository;
   }
 
-  async execute(input: Input): Promise<ProcessTransactionResult> {
+  async execute(input: Input): Promise<ProcessTransactionResult> {    
+    if (input.amount.isPositive) {
+      throw new Error("amount must be positive")
+    }
+
     const transactionId = randomUUIDv7();
 
     const wallet = await this.walletRepository.read(input.walletId);
