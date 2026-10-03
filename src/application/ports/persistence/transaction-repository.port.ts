@@ -10,6 +10,6 @@ export interface TransactionRepository {
   checkApplied(
     providerId: string,
     externalId: string,
-    status: TransactionType,
+    type: TransactionType,
   ): Promise<boolean>;
 }
