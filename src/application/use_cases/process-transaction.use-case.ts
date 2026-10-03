@@ -56,6 +56,7 @@ export type ProcessTransactionResult = {
   id: string;
   status: TransactionStatus;
   balance: Money;
+  failureCode: string | undefined;
 };
 
 type Args = {
@@ -153,8 +154,9 @@ export class ProcessTransactionUseCase implements UseCase<
     await this.transactionRepository.create(transaction);
     return {
       id: transactionId,
-      status: status,
+      status,
       balance: balanceAfter ?? wallet.balance,
+      failureCode,
     };
   }
 
