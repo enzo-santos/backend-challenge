@@ -87,6 +87,7 @@ export class ProcessTransactionUseCase implements UseCase<
     const output = await this.#calculate(wallet, input);
     let balanceAfter: Money | undefined;
     let status: TransactionStatus;
+    let failureCode: string | undefined;
     switch (output.type) {
       case 'processed':
         status = TransactionStatus.Processed;
@@ -125,6 +126,7 @@ export class ProcessTransactionUseCase implements UseCase<
 
       case 'rejected':
         status = TransactionStatus.Rejected;
+        failureCode = output.code;
         break;
     }
 
@@ -138,6 +140,7 @@ export class ProcessTransactionUseCase implements UseCase<
       status: status,
       gameId: input.gameId,
       roundId: input.roundId,
+      failureCode: failureCode,
     });
     await this.transactionRepository.create(transaction);
     return {

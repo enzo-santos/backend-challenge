@@ -74,6 +74,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
         amount: initialBalance,
         gameId: undefined,
         roundId: undefined,
+        failureCode: undefined,
       });
 
       // Persiste transaction inicial
