@@ -10,7 +10,9 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "format": "prettier \"src/**/*.ts\" --write",
+    "format:check": "prettier \"src/**/*.ts\" --check"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.900.0",
@@ -39,6 +41,7 @@
     "@mikro-orm/cli": "^7.0.0",
     "@nestjs/testing": "^11.0.0",
     "@types/node": "^24.0.0",
+    "prettier": "3.9.9",
     "typescript": "^5.9.0"
   }
 }
