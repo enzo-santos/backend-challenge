@@ -42,7 +42,7 @@ export class ListWalletLedgerUseCase implements UseCase<Input, Output> {
 
   async execute(input: Input): Promise<Output> {
     const limit = input.limit ?? 50;
-    if (limit < 1) {
+    if (limit < 1 || limit > 100) {
       return { type: 'failure', code: 'INVALID_LIMIT' };
     }
 
