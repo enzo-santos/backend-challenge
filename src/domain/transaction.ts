@@ -97,15 +97,16 @@ export class Transaction {
       throw new Error('transaction amount must be positive');
     }
     const idempotencyKey = args.idempotencyKey?.trim();
+    const payloadHash = args.payloadHash;
     if (
-      (idempotencyKey == null) !== (args.payloadHash == null) ||
+      (idempotencyKey == null) !== (payloadHash == null) ||
       idempotencyKey?.length === 0
     ) {
       throw new Error(
         'transaction idempotencyKey and payloadHash must be provided together',
       );
     }
-    if (args.payloadHash != null && !/^[a-f0-9]{64}$/.test(args.payloadHash)) {
+    if (payloadHash != null && !/^[a-f0-9]{64}$/.test(payloadHash)) {
       throw new Error('transaction payloadHash must be a SHA-256 hex digest');
     }
     if (
@@ -123,7 +124,7 @@ export class Transaction {
     if (
       (args.status === TransactionStatus.Rejected ||
         args.status === TransactionStatus.Failed) !==
-      (args.failureCode != null)
+      (failureCode != null)
     ) {
       throw new Error(
         'rejected and failed transactions require a failureCode, and other statuses forbid it',
@@ -136,10 +137,10 @@ export class Transaction {
       throw new Error('processedAt is only valid for processed transactions');
     }
 
-    this.id = args.id;
-    this.walletId = args.walletId;
-    this.providerId = args.providerId;
-    this.externalId = args.externalId;
+    this.id = id;
+    this.walletId = walletId;
+    this.providerId = providerId;
+    this.externalId = externalId;
 
     this.playerId = args.playerId;
     this.roundId = args.roundId;
@@ -149,11 +150,11 @@ export class Transaction {
     this.status = args.status;
     this.amount = args.amount;
 
-    this.failureCode = args.failureCode;
+    this.failureCode = failureCode;
     this.referencedId = args.referencedId;
 
-    this.idempotencyKey = args.idempotencyKey;
-    this.payloadHash = args.payloadHash;
+    this.idempotencyKey = idempotencyKey;
+    this.payloadHash = payloadHash;
 
     this.createdAt = args.createdAt ?? new Date();
     this.processedAt = args.processedAt;
