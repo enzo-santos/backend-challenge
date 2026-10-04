@@ -32,6 +32,7 @@ export type ProcessTransactionInput = Input;
 type FailureCode =
   | 'INSUFFICIENT_FUNDS' // Para saldo insuficiente
   | 'OPERATION_WOULD_OVERDRAW'
+  | 'ROLLBACK_WOULD_OVERDRAW'
   | 'OPERATION_ALREADY_APPLIED' // Para REFUND/ROLLBACK cuja transação original já foi aplicada
   | 'REFERENCE_NOT_FOUND' // Para REFUND/ROLLBACK sem referencedId
   | 'INVALID_REFERENCE_TYPE' // Para REFUND cujo tipo da transação original não é BET
@@ -113,19 +114,21 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
         if (output.kind == null) {
           status = TransactionStatus.Processed;
         } else {
-          switch (output.kind) {
-            case LedgerItemType.Credit:
-              balanceAfter = wallet.balance.add(input.amount);
-              break;
-            case LedgerItemType.Debit:
-              balanceAfter = wallet.balance.subtract(input.amount);
-              break;
-          }
-
-          if (balanceAfter.isNegative) {
+          if (
+            output.kind === LedgerItemType.Debit &&
+            wallet.balance.isLessThan(input.amount)
+          ) {
             status = TransactionStatus.Rejected;
-            failureCode = 'OPERATION_WOULD_OVERDRAW';
+            failureCode =
+              input.type === TransactionType.Rollback
+                ? 'ROLLBACK_WOULD_OVERDRAW'
+                : 'OPERATION_WOULD_OVERDRAW';
           } else {
+            const updatedWallet =
+              output.kind === LedgerItemType.Credit
+                ? wallet.withCredit(input.amount)
+                : wallet.withDebit(input.amount);
+            balanceAfter = updatedWallet.balance;
             status = TransactionStatus.Processed;
 
             const item = new LedgerItem({
@@ -139,9 +142,7 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
               createdAt: new Date(),
             });
 
-            // Atualiza saldo
-            await this.walletRepository.updateBalance(wallet.id, balanceAfter);
-            // Atualiza ledger
+            await this.walletRepository.update(updatedWallet);
             await this.ledgerItemRepository.create(item);
           }
         }

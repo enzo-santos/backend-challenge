@@ -56,6 +56,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
       balance: initialBalance,
       createdAt: new Date(),
       playerId: playerId,
+      currency: initialBalance.currency,
     });
 
     // Persiste wallet
