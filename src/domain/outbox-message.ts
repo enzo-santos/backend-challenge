@@ -1,3 +1,5 @@
+import { IntegrationEvent } from './integration-event';
+
 type Args = {
   id: string;
   aggregateId: string;
@@ -22,6 +24,17 @@ export class OutboxMessage {
   public readonly publishedAt: Date | undefined;
   public readonly failedAt: Date | undefined;
   public readonly failureCode: string | undefined;
+
+  static enqueue(id: string, event: IntegrationEvent<unknown>): OutboxMessage {
+    return new OutboxMessage({
+      id,
+      aggregateId: event.aggregateId,
+      eventType: event.eventType,
+      payload: event.toJSON() as unknown as Record<string, unknown>,
+      occurredAt: event.occurredAt,
+      attempts: 0,
+    });
+  }
 
   constructor(args: Args) {
     this.id = args.id;

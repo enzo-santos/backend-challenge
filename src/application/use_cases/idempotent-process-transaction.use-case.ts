@@ -5,6 +5,7 @@ import type { IdempotencyKey } from '../ports/persistence/idempotency-repository
 import type { IdempotencyRepository } from '../ports/persistence/idempotency-repository.port';
 import { TransactionStatus } from '@/src/domain/transaction';
 import type { ProcessTransactionInput } from './process-transaction.use-case';
+import type { UnitOfWork } from '../ports/persistence/unit-of-work.port';
 
 export type Input<I> = I & { idempotencyKey: string };
 
@@ -22,6 +23,7 @@ type Output<O> =
 type Args<I, O> = {
   useCase: (input: I) => Promise<O>;
   idempotencyRepository: IdempotencyRepository<O>;
+  unitOfWork: UnitOfWork;
 };
 
 export class IdempotentProcessTransactionUseCase<
@@ -30,13 +32,19 @@ export class IdempotentProcessTransactionUseCase<
 > implements UseCase<Input<I>, Output<O>> {
   private readonly useCase: (input: I) => Promise<O>;
   private readonly idempotencyRepository: IdempotencyRepository<O>;
+  private readonly unitOfWork: UnitOfWork;
 
   constructor(args: Args<I, O>) {
     this.useCase = args.useCase;
     this.idempotencyRepository = args.idempotencyRepository;
+    this.unitOfWork = args.unitOfWork;
   }
 
   async execute(input: Input<I>): Promise<Output<O>> {
+    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+  }
+
+  private async executeWithinTransaction(input: Input<I>): Promise<Output<O>> {
     const idempotencyKey = input.idempotencyKey.trim();
     if (idempotencyKey === '') {
       return {

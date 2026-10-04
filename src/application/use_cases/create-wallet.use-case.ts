@@ -12,6 +12,10 @@ import {
 import { LedgerItemRepository } from '../ports/persistence/ledger-item-repository.port';
 import { LedgerItem, LedgerItemType } from '@/src/domain/ledger-item';
 import Decimal from 'decimal.js';
+import { UnitOfWork } from '../ports/persistence/unit-of-work.port';
+import { OutboxMessageRepository } from '../ports/persistence/outbox-message-repository.port';
+import { WalletBalanceChanged } from '@/src/domain/integration-event';
+import { OutboxMessage } from '@/src/domain/outbox-message';
 
 type Input = {
   playerId: string;
@@ -22,20 +26,30 @@ type Args = {
   walletRepository: WalletRepository;
   transactionRepository: TransactionRepository;
   ledgerItemRepository: LedgerItemRepository;
+  outboxMessageRepository: OutboxMessageRepository;
+  unitOfWork: UnitOfWork;
 };
 
 export class CreateWalletUseCase implements UseCase<Input, Wallet> {
   private readonly walletRepository: WalletRepository;
   private readonly transactionRepository: TransactionRepository;
   private readonly ledgerItemRepository: LedgerItemRepository;
+  private readonly outboxMessageRepository: OutboxMessageRepository;
+  private readonly unitOfWork: UnitOfWork;
 
   constructor(readonly args: Args) {
     this.walletRepository = args.walletRepository;
     this.transactionRepository = args.transactionRepository;
     this.ledgerItemRepository = args.ledgerItemRepository;
+    this.outboxMessageRepository = args.outboxMessageRepository;
+    this.unitOfWork = args.unitOfWork;
   }
 
   async execute(input: Input): Promise<Wallet> {
+    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+  }
+
+  private async executeWithinTransaction(input: Input): Promise<Wallet> {
     const { playerId, initialBalance } = input;
 
     // Valida saldo inicial
@@ -63,6 +77,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
     await this.walletRepository.create(wallet);
 
     if (initialBalance.isPositive) {
+      const occurredAt = new Date();
       const transaction = new Transaction({
         id: randomUUIDv7(),
         providerId: 'backend',
@@ -94,8 +109,27 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
           }),
           amount: initialBalance,
           balanceAfter: initialBalance,
-          createdAt: new Date(),
+          createdAt: occurredAt,
         }),
+      );
+
+      const event = new WalletBalanceChanged({
+        eventId: randomUUIDv7(),
+        aggregateId: wallet.id,
+        correlationId: transaction.id,
+        occurredAt,
+        data: {
+          walletId: wallet.id,
+          transactionId: transaction.id,
+          direction: LedgerItemType.Credit,
+          money: initialBalance,
+          balanceBefore: Money.zero(initialBalance.currency),
+          balanceAfter: initialBalance,
+          walletVersion: wallet.version,
+        },
+      });
+      await this.outboxMessageRepository.create(
+        OutboxMessage.enqueue(randomUUIDv7(), event),
       );
     }
 

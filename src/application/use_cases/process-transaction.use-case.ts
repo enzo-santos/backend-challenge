@@ -11,6 +11,17 @@ import { LedgerItemRepository } from '../ports/persistence/ledger-item-repositor
 import { LedgerItem, LedgerItemType } from '@/src/domain/ledger-item';
 import { TransactionRepository } from '../ports/persistence/transaction-repository.port';
 import { Wallet } from '@/src/domain/wallet';
+import { UnitOfWork } from '../ports/persistence/unit-of-work.port';
+import { OutboxMessageRepository } from '../ports/persistence/outbox-message-repository.port';
+import { OutboxMessage } from '@/src/domain/outbox-message';
+import {
+  IntegrationEvent,
+  WagerTransactionPendingReference,
+  WagerTransactionProcessed,
+  WagerTransactionRejected,
+  WalletBalanceChanged,
+  WagerTransactionEventData,
+} from '@/src/domain/integration-event';
 
 type Input = {
   transactionId?: string;
@@ -27,6 +38,8 @@ type Input = {
   referencedId: string | undefined; // Apenas para REFUND e ROLLBACk
   idempotencyKey?: string;
   payloadHash?: string;
+  correlationId?: string;
+  causationId?: string;
 };
 
 export type ProcessTransactionInput = Input;
@@ -72,20 +85,30 @@ type Args = {
   walletRepository: WalletRepository;
   transactionRepository: TransactionRepository;
   ledgerItemRepository: LedgerItemRepository;
+  outboxMessageRepository: OutboxMessageRepository;
+  unitOfWork: UnitOfWork;
 };
 
 export class ProcessTransactionUseCase implements UseCase<Input, Output> {
   private readonly walletRepository: WalletRepository;
   private readonly transactionRepository: TransactionRepository;
   private readonly ledgerItemRepository: LedgerItemRepository;
+  private readonly outboxMessageRepository: OutboxMessageRepository;
+  private readonly unitOfWork: UnitOfWork;
 
   constructor(args: Args) {
     this.walletRepository = args.walletRepository;
     this.transactionRepository = args.transactionRepository;
     this.ledgerItemRepository = args.ledgerItemRepository;
+    this.outboxMessageRepository = args.outboxMessageRepository;
+    this.unitOfWork = args.unitOfWork;
   }
 
   async execute(input: Input): Promise<Output> {
+    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+  }
+
+  private async executeWithinTransaction(input: Input): Promise<Output> {
     if (!input.amount.isPositive) {
       throw new Error('amount must be positive');
     }
@@ -122,6 +145,8 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
 
     const output = await this.#calculate(wallet, input);
     let balanceAfter: Money | undefined;
+    let updatedWallet: Wallet | undefined;
+    let ledgerType: LedgerItemType | undefined;
     let status: TransactionStatus;
     let failureCode: FailureCode | undefined;
     switch (output.type) {
@@ -139,11 +164,12 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
                 ? 'ROLLBACK_WOULD_OVERDRAW'
                 : 'OPERATION_WOULD_OVERDRAW';
           } else {
-            const updatedWallet =
+            updatedWallet =
               output.kind === LedgerItemType.Credit
                 ? wallet.withCredit(input.amount)
                 : wallet.withDebit(input.amount);
             balanceAfter = updatedWallet.balance;
+            ledgerType = output.kind;
             status = TransactionStatus.Processed;
 
             const item = new LedgerItem({
@@ -201,7 +227,79 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
     if (input.transactionId == null) {
       await this.transactionRepository.create(transaction);
     } else {
-      await this.transactionRepository.update(transaction);
+      const updated = await this.transactionRepository.updateIfStatus(
+        transaction,
+        existingTransaction?.status ?? TransactionStatus.Pending,
+      );
+      if (!updated) {
+        throw new Error(`transaction ${transaction.id} changed concurrently`);
+      }
+    }
+
+    const occurredAt = new Date();
+    const eventData: WagerTransactionEventData = {
+      transactionId: transaction.id,
+      providerId: transaction.providerId,
+      externalTransactionId: transaction.externalId,
+      walletId: transaction.walletId,
+      type: transaction.type,
+      amount: transaction.amount,
+      balance: balanceAfter ?? wallet.balance,
+      failureCode: transaction.failureCode,
+    };
+    let event: IntegrationEvent<WagerTransactionEventData>;
+    if (transaction.status === TransactionStatus.Processed) {
+      event = new WagerTransactionProcessed({
+        eventId: randomUUIDv7(),
+        aggregateId: transaction.id,
+        correlationId: input.correlationId ?? transaction.id,
+        causationId: input.causationId,
+        occurredAt,
+        data: eventData,
+      });
+    } else if (transaction.status === TransactionStatus.PendingReference) {
+      event = new WagerTransactionPendingReference({
+        eventId: randomUUIDv7(),
+        aggregateId: transaction.id,
+        correlationId: input.correlationId ?? transaction.id,
+        causationId: input.causationId,
+        occurredAt,
+        data: eventData,
+      });
+    } else {
+      event = new WagerTransactionRejected({
+        eventId: randomUUIDv7(),
+        aggregateId: transaction.id,
+        correlationId: input.correlationId ?? transaction.id,
+        causationId: input.causationId,
+        occurredAt,
+        data: eventData,
+      });
+    }
+    await this.outboxMessageRepository.create(
+      OutboxMessage.enqueue(randomUUIDv7(), event),
+    );
+
+    if (updatedWallet != null && ledgerType != null && balanceAfter != null) {
+      const balanceChanged = new WalletBalanceChanged({
+        eventId: randomUUIDv7(),
+        aggregateId: wallet.id,
+        correlationId: input.correlationId ?? transaction.id,
+        causationId: input.causationId,
+        occurredAt,
+        data: {
+          walletId: wallet.id,
+          transactionId: transaction.id,
+          direction: ledgerType,
+          money: input.amount,
+          balanceBefore: wallet.balance,
+          balanceAfter: balanceAfter,
+          walletVersion: updatedWallet.version,
+        },
+      });
+      await this.outboxMessageRepository.create(
+        OutboxMessage.enqueue(randomUUIDv7(), balanceChanged),
+      );
     }
     return {
       id: transactionId,

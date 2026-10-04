@@ -1,4 +1,8 @@
-import { Transaction, TransactionType } from '@/src/domain/transaction';
+import {
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+} from '@/src/domain/transaction';
 
 export type PendingReferenceTransaction = {
   transaction: Transaction;
@@ -8,6 +12,10 @@ export type PendingReferenceTransaction = {
 export interface TransactionRepository {
   create(transaction: Transaction): Promise<void>;
   update(transaction: Transaction): Promise<void>;
+  updateIfStatus(
+    transaction: Transaction,
+    expectedStatus: TransactionStatus,
+  ): Promise<boolean>;
   read(id: string): Promise<Transaction | undefined>;
   read(
     providerId: string,
@@ -29,5 +37,5 @@ export interface TransactionRepository {
   rejectPendingReference(
     transactionId: string,
     failureCode: string,
-  ): Promise<void>;
+  ): Promise<Transaction>;
 }

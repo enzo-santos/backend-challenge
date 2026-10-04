@@ -6,6 +6,11 @@ import type {
   ProcessTransactionInput,
   ProcessTransactionOutput,
 } from './process-transaction.use-case';
+import type { UnitOfWork } from '../ports/persistence/unit-of-work.port';
+import type { OutboxMessageRepository } from '../ports/persistence/outbox-message-repository.port';
+import { OutboxMessage } from '@/src/domain/outbox-message';
+import { WagerTransactionRejected } from '@/src/domain/integration-event';
+import { randomUUIDv7 } from 'crypto';
 
 export type ProcessPendingReferencesInput = {
   limit?: number;
@@ -36,6 +41,8 @@ type Args = {
   processTransactionUseCase: (
     input: ProcessTransactionInput,
   ) => Promise<ProcessTransactionOutput>;
+  outboxMessageRepository: OutboxMessageRepository;
+  unitOfWork: UnitOfWork;
 };
 
 const DEFAULT_LIMIT = 50;
@@ -53,13 +60,23 @@ export class ProcessPendingReferencesUseCase implements UseCase<
   private readonly processTransactionUseCase: (
     input: ProcessTransactionInput,
   ) => Promise<ProcessTransactionOutput>;
+  private readonly outboxMessageRepository: OutboxMessageRepository;
+  private readonly unitOfWork: UnitOfWork;
 
   constructor(args: Args) {
     this.transactionRepository = args.transactionRepository;
     this.processTransactionUseCase = args.processTransactionUseCase;
+    this.outboxMessageRepository = args.outboxMessageRepository;
+    this.unitOfWork = args.unitOfWork;
   }
 
   async execute(
+    input: ProcessPendingReferencesInput,
+  ): Promise<ProcessPendingReferencesOutput> {
+    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+  }
+
+  private async executeWithinTransaction(
     input: ProcessPendingReferencesInput,
   ): Promise<ProcessPendingReferencesOutput> {
     const limit = input.limit ?? DEFAULT_LIMIT;
@@ -94,9 +111,29 @@ export class ProcessPendingReferencesUseCase implements UseCase<
     for (const pendingReference of pendingReferences) {
       const { transaction, attempts } = pendingReference;
       if (attempts >= maxAttempts) {
-        await this.transactionRepository.rejectPendingReference(
-          transaction.id,
-          MISSING_REFERENCE_FAILURE_CODE,
+        const rejectedTransaction =
+          await this.transactionRepository.rejectPendingReference(
+            transaction.id,
+            MISSING_REFERENCE_FAILURE_CODE,
+          );
+        const event = new WagerTransactionRejected({
+          eventId: randomUUIDv7(),
+          aggregateId: rejectedTransaction.id,
+          correlationId: rejectedTransaction.id,
+          occurredAt: new Date(),
+          data: {
+            transactionId: rejectedTransaction.id,
+            providerId: rejectedTransaction.providerId,
+            externalTransactionId: rejectedTransaction.externalId,
+            walletId: rejectedTransaction.walletId,
+            type: rejectedTransaction.type,
+            amount: rejectedTransaction.amount,
+            balance: undefined,
+            failureCode: rejectedTransaction.failureCode,
+          },
+        });
+        await this.outboxMessageRepository.create(
+          OutboxMessage.enqueue(randomUUIDv7(), event),
         );
         data.rejected += 1;
         continue;
