@@ -26,6 +26,8 @@ type Input = {
   referencedId: string | undefined; // Apenas para REFUND e ROLLBACk
 };
 
+export type ProcessTransactionInput = Input;
+
 type FailureCode =
   | 'INSUFFICIENT_FUNDS' // Para saldo insuficiente
   | 'OPERATION_WOULD_OVERDRAW'
@@ -53,7 +55,7 @@ type Calculation =
       kind: LedgerItemType | null;
     };
 
-export type ProcessTransactionResult = {
+type Output = {
   id: string;
   status: TransactionStatus;
   balance: Money;
@@ -66,10 +68,7 @@ type Args = {
   ledgerItemRepository: LedgerItemRepository;
 };
 
-export class ProcessTransactionUseCase implements UseCase<
-  Input,
-  ProcessTransactionResult
-> {
+export class ProcessTransactionUseCase implements UseCase<Input, Output> {
   private readonly walletRepository: WalletRepository;
   private readonly transactionRepository: TransactionRepository;
   private readonly ledgerItemRepository: LedgerItemRepository;
@@ -80,7 +79,7 @@ export class ProcessTransactionUseCase implements UseCase<
     this.ledgerItemRepository = args.ledgerItemRepository;
   }
 
-  async execute(input: Input): Promise<ProcessTransactionResult> {
+  async execute(input: Input): Promise<Output> {
     if (!input.amount.isPositive) {
       throw new Error('amount must be positive');
     }
