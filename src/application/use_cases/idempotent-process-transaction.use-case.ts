@@ -67,7 +67,10 @@ export class IdempotentProcessTransactionUseCase<
       };
     }
 
-    const result = await this.useCase(input);
+    const result = await this.useCase({
+      ...input,
+      payloadHash: hash,
+    });
 
     const output: Output<O> = {
       type: 'success',

@@ -25,6 +25,8 @@ type Input = {
   gameId: string;
 
   referencedId: string | undefined; // Apenas para REFUND e ROLLBACk
+  idempotencyKey?: string;
+  payloadHash?: string;
 };
 
 export type ProcessTransactionInput = Input;
@@ -89,6 +91,19 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
     }
 
     const transactionId = input.transactionId ?? randomUUIDv7();
+
+    const existingTransaction =
+      input.transactionId == null
+        ? undefined
+        : await this.transactionRepository.read(input.transactionId);
+    if (input.transactionId != null && existingTransaction == null) {
+      throw new Error(`transaction not found: ${input.transactionId}`);
+    }
+    if (existingTransaction?.isTerminal()) {
+      throw new Error(
+        `transaction ${existingTransaction.id} is already terminal`,
+      );
+    }
 
     const wallet = await this.walletRepository.read(input.walletId);
     if (wallet == null) {
@@ -158,20 +173,31 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
         break;
     }
 
-    const transaction = new Transaction({
-      id: transactionId,
-      walletId: input.walletId,
-      providerId: input.providerId,
-      externalId: input.externalId,
-      amount: input.amount,
-      type: input.type,
-      status: status,
-      playerId: input.playerId,
-      gameId: input.gameId,
-      roundId: input.roundId,
-      failureCode: failureCode,
-      referencedId: input.referencedId,
-    });
+    const pendingTransaction =
+      existingTransaction ??
+      new Transaction({
+        id: transactionId,
+        walletId: input.walletId,
+        providerId: input.providerId,
+        externalId: input.externalId,
+        amount: input.amount,
+        type: input.type,
+        status: TransactionStatus.Pending,
+        playerId: input.playerId,
+        gameId: input.gameId,
+        roundId: input.roundId,
+        failureCode: undefined,
+        referencedId: input.referencedId,
+        idempotencyKey: input.idempotencyKey,
+        payloadHash: input.payloadHash,
+      });
+
+    const transaction =
+      status === TransactionStatus.Processed
+        ? pendingTransaction.markProcessed()
+        : status === TransactionStatus.PendingReference
+          ? pendingTransaction.markPendingReference()
+          : pendingTransaction.reject(failureCode as string);
     if (input.transactionId == null) {
       await this.transactionRepository.create(transaction);
     } else {
@@ -179,9 +205,9 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
     }
     return {
       id: transactionId,
-      status,
+      status: transaction.status,
       balance: balanceAfter ?? wallet.balance,
-      failureCode,
+      failureCode: transaction.failureCode,
     };
   }
 

@@ -153,6 +153,8 @@ export class ProcessPendingReferencesUseCase implements UseCase<
       roundId: transaction.roundId,
       gameId: transaction.gameId,
       referencedId: transaction.referencedId,
+      idempotencyKey: transaction.idempotencyKey,
+      payloadHash: transaction.payloadHash,
     };
   }
 
