@@ -45,9 +45,7 @@ export class CreateWalletUseCase implements UseCase<Input, Wallet> {
       );
     }
     // Valida wallet já existente
-    if (
-      !(await this.walletRepository.exists(playerId, initialBalance.currency))
-    ) {
+    if (await this.walletRepository.exists(playerId, initialBalance.currency)) {
       throw new Error(
         `wallet already exists for given player ID (${playerId}) and currency (${initialBalance.currency})`,
       );
