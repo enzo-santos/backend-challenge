@@ -1,5 +1,10 @@
 import Decimal from 'decimal.js';
 
+export type MoneyProps = {
+  amount: string;
+  currency: string;
+};
+
 type Args = {
   value: Decimal;
   currency: string;
@@ -70,7 +75,7 @@ export class Money {
     return this.value.equals(other.value) && this.currency === other.currency;
   }
 
-  toJSON(): object {
+  toJSON(): MoneyProps {
     return {
       amount: this.value.toFixed(2),
       currency: this.currency,

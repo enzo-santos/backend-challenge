@@ -24,7 +24,7 @@ Uma entrada HTTP ou uma mensagem SQS deve ser convertida pela camada de interfac
 
 O `ProcessTransactionUseCase` lê a wallet, valida player e moeda, resolve referências por `(providerId, externalId)`, calcula o efeito e usa os métodos do domínio para produzir a nova wallet e a nova transação. Quando há efeito financeiro, ele cria no máximo um lançamento; `LOSS` e transações rejeitadas não geram ledger. Quando a referência ainda não existe, a operação é persistida como `PENDING_REFERENCE` em vez de ser descartada. Cada resultado gera seu evento de transação no Outbox, e uma alteração de saldo gera também `WalletBalanceChanged`.
 
-No desenho final, a persistência da transação, a alteração do saldo e a criação do ledger devem acontecer dentro da mesma Unit of Work. Se a entrada vier do SQS, o Inbox e o Outbox também entram nessa mesma fronteira. O port `UnitOfWork` define essa fronteira sem vazar SQL para a aplicação; a implementação concreta precisa fazer o callback participar de uma transação SQL real.
+No desenho final, a persistência da transação, a alteração do saldo e a criação do ledger devem acontecer dentro da mesma Unit of Work. Se a entrada vier do SQS, o Inbox e o Outbox também entram nessa mesma fronteira. O port `UnitOfWork` define essa fronteira sem vazar SQL para a aplicação, e `PostgresUnitOfWork` a implementa com `BEGIN`, `COMMIT`, `ROLLBACK` e savepoints para chamadas aninhadas.
 
 ## Idempotência
 
@@ -54,9 +54,9 @@ Os eventos previstos pelo README são `WagerTransactionProcessed`, `WagerTransac
 
 ## Estado atual e pendências
 
-O escopo implementado se concentra no domínio, na aplicação e nos ports. Não há adapter HTTP, consumidor SQS, publisher AWS, schema PostgreSQL, migrations, constraints, índices ou implementação concreta de MikroORM. Isso é intencional: a infraestrutura deve concretizar as garantias do domínio, e não esconder as regras financeiras dentro de controllers ou repositories.
+O escopo implementado se concentra no domínio, na aplicação e nos adapters de persistência/mensageria. A camada de infraestrutura possui repositories PostgreSQL, migrations SQL reversíveis, Unit of Work, publisher SQS, consumidor Inbox e um container que conecta essas dependências aos use cases. A camada HTTP e a implementação concreta baseada em MikroORM não fazem parte deste recorte; a infraestrutura deve concretizar as garantias do domínio, e não esconder as regras financeiras dentro de controllers ou repositories.
 
-A coordenação de wallet, transação, ledger, Inbox e Outbox com uma Unit of Work real depende da implementação concreta do port. O controle de concorrência por `walletId` também é uma pendência; um fluxo simples de read/calculate/update não resolve duas apostas simultâneas disputando o mesmo saldo em processos diferentes. A persistência precisa garantir unicidade de idempotência, proteção terminal, saldo não negativo no banco e recuperação segura depois de crash.
+A coordenação de wallet, transação, ledger, Inbox e Outbox usa uma Unit of Work PostgreSQL real. O controle de concorrência por `walletId` usa versionamento otimista no banco e retry limitado na aplicação; um fluxo simples de read/calculate/update sem essa proteção não resolveria duas apostas simultâneas disputando o mesmo saldo. A persistência aplica unicidade de idempotência, proteção terminal, saldo não negativo no banco e recuperação segura depois de crash.
 
 No domínio, é necessário fechar a validação de uma referência opcional em `WIN`. O erro de rollback que causaria saldo negativo possui código próprio, mas essa garantia depende de uma persistência transacional e concorrente para ser confiável em múltiplas instâncias.
 

@@ -3,6 +3,7 @@ import stringify from 'fast-json-stable-stringify';
 import type { UseCase } from '.';
 import type { InboxMessageRepository } from '../ports/persistence/inbox-message-repository.port';
 import { InboxMessage } from '@/src/domain/inbox-message';
+import type { UnitOfWork } from '../ports/persistence/unit-of-work.port';
 
 export type ProcessInboxMessageInput<Payload> = {
   consumerName: string;
@@ -31,6 +32,7 @@ export type ProcessInboxMessageOutput =
 type Args<Payload> = {
   inboxMessageRepository: InboxMessageRepository;
   processMessage: (payload: Payload) => Promise<unknown>;
+  unitOfWork: UnitOfWork;
 };
 
 export class ProcessInboxMessageUseCase<Payload> implements UseCase<
@@ -39,13 +41,21 @@ export class ProcessInboxMessageUseCase<Payload> implements UseCase<
 > {
   private readonly inboxMessageRepository: InboxMessageRepository;
   private readonly processMessage: (payload: Payload) => Promise<unknown>;
+  private readonly unitOfWork: UnitOfWork;
 
   constructor(args: Args<Payload>) {
     this.inboxMessageRepository = args.inboxMessageRepository;
     this.processMessage = args.processMessage;
+    this.unitOfWork = args.unitOfWork;
   }
 
   async execute(
+    input: ProcessInboxMessageInput<Payload>,
+  ): Promise<ProcessInboxMessageOutput> {
+    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+  }
+
+  private async executeWithinTransaction(
     input: ProcessInboxMessageInput<Payload>,
   ): Promise<ProcessInboxMessageOutput> {
     const consumerName = input.consumerName.trim();
@@ -58,8 +68,8 @@ export class ProcessInboxMessageUseCase<Payload> implements UseCase<
     }
 
     const message = new InboxMessage({
-      messageId: input.messageId,
-      consumerName: input.consumerName,
+      messageId,
+      consumerName,
       payloadHash: this.createPayloadHash(input.payload),
       receivedAt: input.receivedAt ?? new Date(),
     });
@@ -72,8 +82,8 @@ export class ProcessInboxMessageUseCase<Payload> implements UseCase<
       return {
         type: 'success',
         data: {
-          consumerName: input.consumerName,
-          messageId: input.messageId,
+          consumerName,
+          messageId,
           duplicate: true,
         },
       };
@@ -86,8 +96,8 @@ export class ProcessInboxMessageUseCase<Payload> implements UseCase<
     return {
       type: 'success',
       data: {
-        consumerName: input.consumerName,
-        messageId: input.messageId,
+        consumerName,
+        messageId,
         duplicate: false,
       },
     };

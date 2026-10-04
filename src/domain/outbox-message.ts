@@ -8,6 +8,7 @@ type Args = {
   occurredAt: Date;
   attempts: number;
   nextAttemptAt?: Date;
+  leaseUntil?: Date;
   publishedAt?: Date;
   failedAt?: Date;
   failureCode?: string;
@@ -21,6 +22,7 @@ export class OutboxMessage {
   public readonly occurredAt: Date;
   public readonly attempts: number;
   public readonly nextAttemptAt: Date | undefined;
+  public readonly leaseUntil: Date | undefined;
   public readonly publishedAt: Date | undefined;
   public readonly failedAt: Date | undefined;
   public readonly failureCode: string | undefined;
@@ -44,6 +46,7 @@ export class OutboxMessage {
     this.occurredAt = args.occurredAt;
     this.attempts = args.attempts;
     this.nextAttemptAt = args.nextAttemptAt;
+    this.leaseUntil = args.leaseUntil;
     this.publishedAt = args.publishedAt;
     this.failedAt = args.failedAt;
     this.failureCode = args.failureCode;
@@ -72,6 +75,7 @@ export class OutboxMessage {
       payload: this.payload,
       occurredAt: this.occurredAt,
       attempts: this.attempts + 1,
+      leaseUntil: undefined,
       publishedAt: at,
     });
   }
@@ -89,6 +93,7 @@ export class OutboxMessage {
       occurredAt: this.occurredAt,
       attempts: this.attempts + 1,
       nextAttemptAt,
+      leaseUntil: undefined,
     });
   }
 
@@ -104,6 +109,7 @@ export class OutboxMessage {
       payload: this.payload,
       occurredAt: this.occurredAt,
       attempts: this.attempts + 1,
+      leaseUntil: undefined,
       failedAt: at,
       failureCode,
     });

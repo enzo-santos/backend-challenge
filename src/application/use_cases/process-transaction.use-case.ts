@@ -22,6 +22,7 @@ import {
   WalletBalanceChanged,
   WagerTransactionEventData,
 } from '@/src/domain/integration-event';
+import { ConcurrencyConflictError } from '../ports/persistence/concurrency-conflict.error';
 
 type Input = {
   transactionId?: string;
@@ -105,7 +106,22 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
   }
 
   async execute(input: Input): Promise<Output> {
-    return this.unitOfWork.execute(() => this.executeWithinTransaction(input));
+    const maxConcurrencyRetries = 3;
+    for (let attempt = 0; attempt <= maxConcurrencyRetries; attempt += 1) {
+      try {
+        return await this.unitOfWork.execute(() =>
+          this.executeWithinTransaction(input),
+        );
+      } catch (error) {
+        if (
+          !(error instanceof ConcurrencyConflictError) ||
+          attempt === maxConcurrencyRetries
+        ) {
+          throw error;
+        }
+      }
+    }
+    throw new Error('transaction processing retry loop did not complete');
   }
 
   private async executeWithinTransaction(input: Input): Promise<Output> {
@@ -232,7 +248,9 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
         existingTransaction?.status ?? TransactionStatus.Pending,
       );
       if (!updated) {
-        throw new Error(`transaction ${transaction.id} changed concurrently`);
+        throw new ConcurrencyConflictError(
+          `transaction ${transaction.id} changed concurrently`,
+        );
       }
     }
 
