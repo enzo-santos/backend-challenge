@@ -18,6 +18,7 @@ type Output =
         difference: Money;
         consistent: boolean;
         checkedEntries: number;
+        mismatches: Mismatch[];
       };
     }
   | { type: 'failure'; code: 'WALLET_NOT_FOUND' };
@@ -134,6 +135,7 @@ export class ReconcileWalletUseCase implements UseCase<Input, Output> {
         difference: difference,
         consistent: mismatches.length === 0 && difference.isZero,
         checkedEntries: ledgerItems.length,
+        mismatches,
       },
     };
   }
