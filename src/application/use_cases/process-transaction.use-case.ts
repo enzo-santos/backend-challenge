@@ -13,6 +13,7 @@ import { TransactionRepository } from '../ports/persistence/transaction-reposito
 import { Wallet } from '@/src/domain/wallet';
 
 type Input = {
+  transactionId?: string;
   providerId: string;
   externalId: string;
   walletId: string;
@@ -62,6 +63,8 @@ type Output = {
   failureCode: string | undefined;
 };
 
+export type ProcessTransactionOutput = Output;
+
 type Args = {
   walletRepository: WalletRepository;
   transactionRepository: TransactionRepository;
@@ -84,7 +87,7 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
       throw new Error('amount must be positive');
     }
 
-    const transactionId = randomUUIDv7();
+    const transactionId = input.transactionId ?? randomUUIDv7();
 
     const wallet = await this.walletRepository.read(input.walletId);
     if (wallet == null) {
@@ -168,7 +171,11 @@ export class ProcessTransactionUseCase implements UseCase<Input, Output> {
       failureCode: failureCode,
       referencedId: input.referencedId,
     });
-    await this.transactionRepository.create(transaction);
+    if (input.transactionId == null) {
+      await this.transactionRepository.create(transaction);
+    } else {
+      await this.transactionRepository.update(transaction);
+    }
     return {
       id: transactionId,
       status,
