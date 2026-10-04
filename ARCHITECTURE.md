@@ -4,6 +4,18 @@ Este projeto existe para processar transações de apostas sem deixar que detalh
 
 O caminho escolhido começa no domínio e vai abrindo espaço para o restante do sistema. Primeiro definimos o que é uma operação válida e quais estados ela pode assumir, depois a aplicação coordena essas decisões por meio de use cases, e por último, adapters concretos conectam tudo a PostgreSQL, SQS, NestJS e aos demais serviços. Isso mantém a regra financeira longe de SQL, ORM e detalhes de transporte, além de permitir testar o comportamento principal sem depender de uma infraestrutura inteira.
 
+> **Estado atual e pendências**
+>
+> O escopo implementado se concentra no domínio, na aplicação e nos adapters de persistência/mensageria. A camada de infraestrutura possui repositories PostgreSQL, migrations SQL reversíveis, Unit of Work, publisher SQS, consumidor Inbox e um container que conecta essas dependências aos use cases. Não foi possível implementar a camada HTTP e a implementação concreta baseada em MikroORM no prazo estabelecido.
+> 
+> A coordenação de wallet, transação, ledger, Inbox e Outbox usa uma Unit of Work PostgreSQL real. O controle de concorrência por `walletId` usa versionamento otimista no banco e retry limitado na aplicação; um fluxo simples de read/calculate/update sem essa proteção não resolveria duas apostas simultâneas disputando o mesmo saldo. A persistência aplica unicidade de idempotência, proteção terminal, saldo não negativo no banco e recuperação segura depois de crash.
+> 
+> No domínio, é necessário fechar a validação de uma referência opcional em `WIN`. O erro de rollback que causaria saldo negativo possui código próprio, mas essa garantia depende de uma persistência transacional e concorrente para ser confiável em múltiplas instâncias.
+> 
+> O README exige logs estruturados, métricas, health checks, shutdown com tratamento de redelivery e testes reais de PostgreSQL, SQS, concorrência e recuperação. No entanto, também não foi possível implementar esses itens, assim como a autenticação.
+> 
+> A ordem de implementação é uma escolha prática: deixar o domínio impossível de interpretar errado, fechar os use cases, e só então encaixar constraints, locks, leases, commits e adapters concretos. Fazer esse caminho ao contrário tornaria o sistema dependente de um banco específico e dificultaria perceber, no código, por que uma operação financeira é ou não permitida.
+
 ## Domínio
 
 O projeto usa `Money` em vez de `number` em todos os pontos que representam dinheiro. A implementação usa `Decimal`, rejeita valores infinitos, limita a escala a duas casas decimais e exige moedas com três letras maiúsculas. Quando o valor sai para JSON, ele vira uma string com duas casas, porque a representação precisa continuar estável entre aplicação, banco e mensagens.
@@ -51,15 +63,3 @@ O Inbox existe para lidar com a realidade de que SQS pode entregar a mesma mensa
 O Outbox resolve o problema complementar: o banco pode confirmar o commit e o processo pode morrer antes de publicar o evento. Por isso o publisher reivindica mensagens vencidas com um lease, publica e grava o próximo estado. Falhas retryable usam backoff; falhas permanentes e tentativas esgotadas deixam a mensagem marcada como falha em vez de apagá-la. Ainda aceitamos que uma publicação possa ser repetida depois de um crash, então consumidores precisam ser idempotentes.
 
 Os eventos previstos pelo README são `WagerTransactionProcessed`, `WagerTransactionRejected`, `WagerTransactionPendingReference` e `WalletBalanceChanged`. Uma operação processada sempre gera o evento da transação, inclusive `LOSS`; o evento de mudança de saldo só aparece quando o saldo realmente muda. As classes concretas são versionadas no domínio e o processamento cria as mensagens de Outbox; a atomicidade do enqueue depende do adapter de persistência participar da mesma Unit of Work.
-
-## Estado atual e pendências
-
-O escopo implementado se concentra no domínio, na aplicação e nos adapters de persistência/mensageria. A camada de infraestrutura possui repositories PostgreSQL, migrations SQL reversíveis, Unit of Work, publisher SQS, consumidor Inbox e um container que conecta essas dependências aos use cases. A camada HTTP e a implementação concreta baseada em MikroORM não fazem parte deste recorte; a infraestrutura deve concretizar as garantias do domínio, e não esconder as regras financeiras dentro de controllers ou repositories.
-
-A coordenação de wallet, transação, ledger, Inbox e Outbox usa uma Unit of Work PostgreSQL real. O controle de concorrência por `walletId` usa versionamento otimista no banco e retry limitado na aplicação; um fluxo simples de read/calculate/update sem essa proteção não resolveria duas apostas simultâneas disputando o mesmo saldo. A persistência aplica unicidade de idempotência, proteção terminal, saldo não negativo no banco e recuperação segura depois de crash.
-
-No domínio, é necessário fechar a validação de uma referência opcional em `WIN`. O erro de rollback que causaria saldo negativo possui código próprio, mas essa garantia depende de uma persistência transacional e concorrente para ser confiável em múltiplas instâncias.
-
-O README também exige logs estruturados, métricas, health checks, shutdown com tratamento de redelivery e testes reais de PostgreSQL, SQS, concorrência e recuperação. Esses itens são pendências; `bun test` não encontra arquivos de teste no momento. Autenticação pertence ao escopo excluído.
-
-A ordem de implementação é uma escolha prática: deixar o domínio impossível de interpretar errado, fechar os use cases, e só então encaixar constraints, locks, leases, commits e adapters concretos. Fazer esse caminho ao contrário tornaria o sistema dependente de um banco específico e dificultaria perceber, no código, por que uma operação financeira é ou não permitida.
